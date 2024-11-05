@@ -216,6 +216,11 @@ class FileUploadConfig(BaseSettings):
         default=20,
     )
 
+    WORKFLOW_FILE_UPLOAD_LIMIT: PositiveInt = Field(
+        description="Maximum number of files allowed in a workflow upload operation",
+        default=10,
+    )
+
 
 class HttpConfig(BaseSettings):
     """
@@ -569,6 +574,11 @@ class DataSetConfig(BaseSettings):
     DATASET_OPERATOR_ENABLED: bool = Field(
         description="Enable or disable dataset operator functionality",
         default=False,
+    )
+
+    TIDB_SERVERLESS_NUMBER: PositiveInt = Field(
+        description="number of tidb serverless cluster",
+        default=500,
     )
 
 
