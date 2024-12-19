@@ -2,14 +2,14 @@ import logging
 import uuid
 from collections.abc import Generator, Mapping, Sequence
 from concurrent.futures import Future, wait
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from queue import Empty, Queue
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 from flask import Flask, current_app
 
 from configs import dify_config
-from core.model_runtime.utils.encoders import jsonable_encoder
+from core.variables import IntegerVariable
 from core.workflow.entities.node_entities import (
     NodeRunMetadataKey,
     NodeRunResult,
@@ -37,6 +37,15 @@ from core.workflow.nodes.enums import NodeType
 from core.workflow.nodes.event import NodeEvent, RunCompletedEvent
 from core.workflow.nodes.iteration.entities import ErrorHandleMode, IterationNodeData
 from models.workflow import WorkflowNodeExecutionStatus
+
+from .exc import (
+    InvalidIteratorValueError,
+    IterationGraphNotFoundError,
+    IterationIndexNotFoundError,
+    IterationNodeError,
+    IteratorVariableNotFoundError,
+    StartNodeIdNotFoundError,
+)
 
 if TYPE_CHECKING:
     from core.workflow.graph_engine.graph_engine import GraphEngine
@@ -69,7 +78,7 @@ class IterationNode(BaseNode[IterationNodeData]):
         iterator_list_segment = self.graph_runtime_state.variable_pool.get(self.node_data.iterator_selector)
 
         if not iterator_list_segment:
-            raise ValueError(f"Iterator variable {self.node_data.iterator_selector} not found")
+            raise IteratorVariableNotFoundError(f"Iterator variable {self.node_data.iterator_selector} not found")
 
         if len(iterator_list_segment.value) == 0:
             yield RunCompletedEvent(
@@ -83,14 +92,14 @@ class IterationNode(BaseNode[IterationNodeData]):
         iterator_list_value = iterator_list_segment.to_object()
 
         if not isinstance(iterator_list_value, list):
-            raise ValueError(f"Invalid iterator value: {iterator_list_value}, please provide a list.")
+            raise InvalidIteratorValueError(f"Invalid iterator value: {iterator_list_value}, please provide a list.")
 
         inputs = {"iterator_selector": iterator_list_value}
 
         graph_config = self.graph_config
 
         if not self.node_data.start_node_id:
-            raise ValueError(f"field start_node_id in iteration {self.node_id} not found")
+            raise StartNodeIdNotFoundError(f"field start_node_id in iteration {self.node_id} not found")
 
         root_node_id = self.node_data.start_node_id
 
@@ -98,7 +107,7 @@ class IterationNode(BaseNode[IterationNodeData]):
         iteration_graph = Graph.init(graph_config=graph_config, root_node_id=root_node_id)
 
         if not iteration_graph:
-            raise ValueError("iteration graph not found")
+            raise IterationGraphNotFoundError("iteration graph not found")
 
         variable_pool = self.graph_runtime_state.variable_pool
 
@@ -126,7 +135,7 @@ class IterationNode(BaseNode[IterationNodeData]):
             thread_pool_id=self.thread_pool_id,
         )
 
-        start_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        start_at = datetime.now(UTC).replace(tzinfo=None)
 
         yield IterationRunStartedEvent(
             iteration_id=self.id,
@@ -146,26 +155,31 @@ class IterationNode(BaseNode[IterationNodeData]):
             iteration_node_data=self.node_data,
             index=0,
             pre_iteration_output=None,
+            duration=None,
         )
-        outputs: list[Any] = []
+        iter_run_map: dict[str, float] = {}
+        outputs: list[Any] = [None] * len(iterator_list_value)
         try:
             if self.node_data.is_parallel:
                 futures: list[Future] = []
-                q = Queue()
-                thread_pool = GraphEngineThreadPool(max_workers=self.node_data.parallel_nums, max_submit_count=100)
+                q: Queue = Queue()
+                thread_pool = GraphEngineThreadPool(
+                    max_workers=self.node_data.parallel_nums, max_submit_count=dify_config.MAX_SUBMIT_COUNT
+                )
                 for index, item in enumerate(iterator_list_value):
                     future: Future = thread_pool.submit(
                         self._run_single_iter_parallel,
-                        current_app._get_current_object(),
-                        q,
-                        iterator_list_value,
-                        inputs,
-                        outputs,
-                        start_at,
-                        graph_engine,
-                        iteration_graph,
-                        index,
-                        item,
+                        flask_app=current_app._get_current_object(),  # type: ignore
+                        q=q,
+                        iterator_list_value=iterator_list_value,
+                        inputs=inputs,
+                        outputs=outputs,
+                        start_at=start_at,
+                        graph_engine=graph_engine,
+                        iteration_graph=iteration_graph,
+                        index=index,
+                        item=item,
+                        iter_run_map=iter_run_map,
                     )
                     future.add_done_callback(thread_pool.task_done_callback)
                     futures.append(future)
@@ -197,14 +211,22 @@ class IterationNode(BaseNode[IterationNodeData]):
             else:
                 for _ in range(len(iterator_list_value)):
                     yield from self._run_single_iter(
-                        iterator_list_value,
-                        variable_pool,
-                        inputs,
-                        outputs,
-                        start_at,
-                        graph_engine,
-                        iteration_graph,
+                        iterator_list_value=iterator_list_value,
+                        variable_pool=variable_pool,
+                        inputs=inputs,
+                        outputs=outputs,
+                        start_at=start_at,
+                        graph_engine=graph_engine,
+                        iteration_graph=iteration_graph,
+                        iter_run_map=iter_run_map,
                     )
+            if self.node_data.error_handle_mode == ErrorHandleMode.REMOVE_ABNORMAL_OUTPUT:
+                outputs = [output for output in outputs if output is not None]
+
+            # Flatten the list of lists
+            if isinstance(outputs, list) and all(isinstance(output, list) for output in outputs):
+                outputs = [item for sublist in outputs for item in sublist]
+
             yield IterationRunSucceededEvent(
                 iteration_id=self.id,
                 iteration_node_id=self.node_id,
@@ -212,19 +234,24 @@ class IterationNode(BaseNode[IterationNodeData]):
                 iteration_node_data=self.node_data,
                 start_at=start_at,
                 inputs=inputs,
-                outputs={"output": jsonable_encoder(outputs)},
+                outputs={"output": outputs},
                 steps=len(iterator_list_value),
                 metadata={"total_tokens": graph_engine.graph_runtime_state.total_tokens},
             )
 
             yield RunCompletedEvent(
                 run_result=NodeRunResult(
-                    status=WorkflowNodeExecutionStatus.SUCCEEDED, outputs={"output": jsonable_encoder(outputs)}
+                    status=WorkflowNodeExecutionStatus.SUCCEEDED,
+                    outputs={"output": outputs},
+                    metadata={
+                        NodeRunMetadataKey.ITERATION_DURATION_MAP: iter_run_map,
+                        NodeRunMetadataKey.TOTAL_TOKENS: graph_engine.graph_runtime_state.total_tokens,
+                    },
                 )
             )
-        except Exception as e:
+        except IterationNodeError as e:
             # iteration run failed
-            logger.exception("Iteration run failed")
+            logger.warning("Iteration run failed")
             yield IterationRunFailedEvent(
                 iteration_id=self.id,
                 iteration_node_id=self.node_id,
@@ -232,7 +259,7 @@ class IterationNode(BaseNode[IterationNodeData]):
                 iteration_node_data=self.node_data,
                 start_at=start_at,
                 inputs=inputs,
-                outputs={"output": jsonable_encoder(outputs)},
+                outputs={"output": outputs},
                 steps=len(iterator_list_value),
                 metadata={"total_tokens": graph_engine.graph_runtime_state.total_tokens},
                 error=str(e),
@@ -264,7 +291,7 @@ class IterationNode(BaseNode[IterationNodeData]):
         :param node_data: node data
         :return:
         """
-        variable_mapping = {
+        variable_mapping: dict[str, Sequence[str]] = {
             f"{node_id}.input_selector": node_data.iterator_selector,
         }
 
@@ -272,7 +299,7 @@ class IterationNode(BaseNode[IterationNodeData]):
         iteration_graph = Graph.init(graph_config=graph_config, root_node_id=node_data.start_node_id)
 
         if not iteration_graph:
-            raise ValueError("iteration graph not found")
+            raise IterationGraphNotFoundError("iteration graph not found")
 
         for sub_node_id, sub_node_config in iteration_graph.node_id_config_mapping.items():
             if sub_node_config.get("data", {}).get("iteration_id") != node_id:
@@ -281,17 +308,18 @@ class IterationNode(BaseNode[IterationNodeData]):
             # variable selector to variable mapping
             try:
                 # Get node class
-                from core.workflow.nodes.node_mapping import node_type_classes_mapping
+                from core.workflow.nodes.node_mapping import NODE_TYPE_CLASSES_MAPPING
 
                 node_type = NodeType(sub_node_config.get("data", {}).get("type"))
-                node_cls = node_type_classes_mapping.get(node_type)
-                if not node_cls:
+                if node_type not in NODE_TYPE_CLASSES_MAPPING:
                     continue
+                node_version = sub_node_config.get("data", {}).get("version", "1")
+                node_cls = NODE_TYPE_CLASSES_MAPPING[node_type][node_version]
 
                 sub_node_variable_mapping = node_cls.extract_variable_selector_to_variable_mapping(
                     graph_config=graph_config, config=sub_node_config
                 )
-                sub_node_variable_mapping = cast(dict[str, list[str]], sub_node_variable_mapping)
+                sub_node_variable_mapping = cast(dict[str, Sequence[str]], sub_node_variable_mapping)
             except NotImplementedError:
                 sub_node_variable_mapping = {}
 
@@ -312,8 +340,12 @@ class IterationNode(BaseNode[IterationNodeData]):
         return variable_mapping
 
     def _handle_event_metadata(
-        self, event: BaseNodeEvent, iter_run_index: str, parallel_mode_run_id: str
-    ) -> NodeRunStartedEvent | BaseNodeEvent:
+        self,
+        *,
+        event: BaseNodeEvent | InNodeEvent,
+        iter_run_index: int,
+        parallel_mode_run_id: str | None,
+    ) -> NodeRunStartedEvent | BaseNodeEvent | InNodeEvent:
         """
         add iteration metadata to event.
         """
@@ -338,26 +370,31 @@ class IterationNode(BaseNode[IterationNodeData]):
 
     def _run_single_iter(
         self,
-        iterator_list_value: list[str],
+        *,
+        iterator_list_value: Sequence[str],
         variable_pool: VariablePool,
-        inputs: dict[str, list],
+        inputs: Mapping[str, list],
         outputs: list,
         start_at: datetime,
         graph_engine: "GraphEngine",
         iteration_graph: Graph,
+        iter_run_map: dict[str, float],
         parallel_mode_run_id: Optional[str] = None,
     ) -> Generator[NodeEvent | InNodeEvent, None, None]:
         """
         run single iteration
         """
+        iter_start_at = datetime.now(UTC).replace(tzinfo=None)
+
         try:
             rst = graph_engine.run()
             # get current iteration index
-            current_index = variable_pool.get([self.node_id, "index"]).value
+            index_variable = variable_pool.get([self.node_id, "index"])
+            if not isinstance(index_variable, IntegerVariable):
+                raise IterationIndexNotFoundError(f"iteration {self.node_id} current index not found")
+            current_index = index_variable.value
+            iteration_run_id = parallel_mode_run_id if parallel_mode_run_id is not None else f"{current_index}"
             next_index = int(current_index) + 1
-
-            if current_index is None:
-                raise ValueError(f"iteration {self.node_id} current index not found")
             for event in rst:
                 if isinstance(event, (BaseNodeEvent | BaseParallelBranchEvent)) and not event.in_iteration_id:
                     event.in_iteration_id = self.node_id
@@ -370,7 +407,9 @@ class IterationNode(BaseNode[IterationNodeData]):
                     continue
 
                 if isinstance(event, NodeRunSucceededEvent):
-                    yield self._handle_event_metadata(event, current_index, parallel_mode_run_id)
+                    yield self._handle_event_metadata(
+                        event=event, iter_run_index=current_index, parallel_mode_run_id=parallel_mode_run_id
+                    )
                 elif isinstance(event, BaseGraphEvent):
                     if isinstance(event, GraphRunFailedEvent):
                         # iteration run failed
@@ -383,7 +422,7 @@ class IterationNode(BaseNode[IterationNodeData]):
                                 parallel_mode_run_id=parallel_mode_run_id,
                                 start_at=start_at,
                                 inputs=inputs,
-                                outputs={"output": jsonable_encoder(outputs)},
+                                outputs={"output": outputs},
                                 steps=len(iterator_list_value),
                                 metadata={"total_tokens": graph_engine.graph_runtime_state.total_tokens},
                                 error=event.error,
@@ -396,7 +435,7 @@ class IterationNode(BaseNode[IterationNodeData]):
                                 iteration_node_data=self.node_data,
                                 start_at=start_at,
                                 inputs=inputs,
-                                outputs={"output": jsonable_encoder(outputs)},
+                                outputs={"output": outputs},
                                 steps=len(iterator_list_value),
                                 metadata={"total_tokens": graph_engine.graph_runtime_state.total_tokens},
                                 error=event.error,
@@ -408,18 +447,22 @@ class IterationNode(BaseNode[IterationNodeData]):
                             )
                         )
                         return
-                else:
-                    event = cast(InNodeEvent, event)
-                    metadata_event = self._handle_event_metadata(event, current_index, parallel_mode_run_id)
+                elif isinstance(event, InNodeEvent):
+                    # event = cast(InNodeEvent, event)
+                    metadata_event = self._handle_event_metadata(
+                        event=event, iter_run_index=current_index, parallel_mode_run_id=parallel_mode_run_id
+                    )
                     if isinstance(event, NodeRunFailedEvent):
                         if self.node_data.error_handle_mode == ErrorHandleMode.CONTINUE_ON_ERROR:
                             yield NodeInIterationFailedEvent(
                                 **metadata_event.model_dump(),
                             )
-                            outputs.insert(current_index, None)
+                            outputs[current_index] = None
                             variable_pool.add([self.node_id, "index"], next_index)
                             if next_index < len(iterator_list_value):
                                 variable_pool.add([self.node_id, "item"], iterator_list_value[next_index])
+                            duration = (datetime.now(UTC).replace(tzinfo=None) - iter_start_at).total_seconds()
+                            iter_run_map[iteration_run_id] = duration
                             yield IterationRunNextEvent(
                                 iteration_id=self.id,
                                 iteration_node_id=self.node_id,
@@ -428,6 +471,7 @@ class IterationNode(BaseNode[IterationNodeData]):
                                 index=next_index,
                                 parallel_mode_run_id=parallel_mode_run_id,
                                 pre_iteration_output=None,
+                                duration=duration,
                             )
                             return
                         elif self.node_data.error_handle_mode == ErrorHandleMode.REMOVE_ABNORMAL_OUTPUT:
@@ -438,6 +482,8 @@ class IterationNode(BaseNode[IterationNodeData]):
 
                             if next_index < len(iterator_list_value):
                                 variable_pool.add([self.node_id, "item"], iterator_list_value[next_index])
+                            duration = (datetime.now(UTC).replace(tzinfo=None) - iter_start_at).total_seconds()
+                            iter_run_map[iteration_run_id] = duration
                             yield IterationRunNextEvent(
                                 iteration_id=self.id,
                                 iteration_node_id=self.node_id,
@@ -446,6 +492,7 @@ class IterationNode(BaseNode[IterationNodeData]):
                                 index=next_index,
                                 parallel_mode_run_id=parallel_mode_run_id,
                                 pre_iteration_output=None,
+                                duration=duration,
                             )
                             return
                         elif self.node_data.error_handle_mode == ErrorHandleMode.TERMINATED:
@@ -463,8 +510,11 @@ class IterationNode(BaseNode[IterationNodeData]):
                             )
                     yield metadata_event
 
-            current_iteration_output = variable_pool.get(self.node_data.output_selector).value
-            outputs.insert(current_index, current_iteration_output)
+            current_output_segment = variable_pool.get(self.node_data.output_selector)
+            if current_output_segment is None:
+                raise IterationNodeError("iteration output selector not found")
+            current_iteration_output = current_output_segment.value
+            outputs[current_index] = current_iteration_output
             # remove all nodes outputs from variable pool
             for node_id in iteration_graph.node_ids:
                 variable_pool.remove([node_id])
@@ -474,6 +524,8 @@ class IterationNode(BaseNode[IterationNodeData]):
 
             if next_index < len(iterator_list_value):
                 variable_pool.add([self.node_id, "item"], iterator_list_value[next_index])
+            duration = (datetime.now(UTC).replace(tzinfo=None) - iter_start_at).total_seconds()
+            iter_run_map[iteration_run_id] = duration
             yield IterationRunNextEvent(
                 iteration_id=self.id,
                 iteration_node_id=self.node_id,
@@ -481,11 +533,12 @@ class IterationNode(BaseNode[IterationNodeData]):
                 iteration_node_data=self.node_data,
                 index=next_index,
                 parallel_mode_run_id=parallel_mode_run_id,
-                pre_iteration_output=jsonable_encoder(current_iteration_output) if current_iteration_output else None,
+                pre_iteration_output=current_iteration_output or None,
+                duration=duration,
             )
 
-        except Exception as e:
-            logger.exception(f"Iteration run failed:{str(e)}")
+        except IterationNodeError as e:
+            logger.warning(f"Iteration run failed:{str(e)}")
             yield IterationRunFailedEvent(
                 iteration_id=self.id,
                 iteration_node_id=self.node_id,
@@ -507,17 +560,19 @@ class IterationNode(BaseNode[IterationNodeData]):
 
     def _run_single_iter_parallel(
         self,
+        *,
         flask_app: Flask,
         q: Queue,
-        iterator_list_value: list[str],
-        inputs: dict[str, list],
+        iterator_list_value: Sequence[str],
+        inputs: Mapping[str, list],
         outputs: list,
         start_at: datetime,
         graph_engine: "GraphEngine",
         iteration_graph: Graph,
         index: int,
         item: Any,
-    ) -> Generator[NodeEvent | InNodeEvent, None, None]:
+        iter_run_map: dict[str, float],
+    ):
         """
         run single iteration in parallel mode
         """
@@ -535,6 +590,8 @@ class IterationNode(BaseNode[IterationNodeData]):
                 start_at=start_at,
                 graph_engine=graph_engine_copy,
                 iteration_graph=iteration_graph,
+                iter_run_map=iter_run_map,
                 parallel_mode_run_id=parallel_mode_run_id,
             ):
                 q.put(event)
+            graph_engine.graph_runtime_state.total_tokens += graph_engine_copy.graph_runtime_state.total_tokens

@@ -3,7 +3,7 @@ import re
 import uuid
 from collections.abc import Mapping
 from datetime import datetime
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Any, Literal, Optional
 
 import sqlalchemy as sa
@@ -13,7 +13,7 @@ from sqlalchemy import Float, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from configs import dify_config
-from core.file import FILE_MODEL_IDENTITY, File, FileExtraConfig, FileTransferMethod, FileType
+from core.file import FILE_MODEL_IDENTITY, File, FileTransferMethod, FileType
 from core.file import helpers as file_helpers
 from core.file.tool_file_parser import ToolFileParser
 from extensions.ext_database import db
@@ -32,7 +32,7 @@ class DifySetup(db.Model):
     setup_at = db.Column(db.DateTime, nullable=False, server_default=db.text("CURRENT_TIMESTAMP(0)"))
 
 
-class AppMode(str, Enum):
+class AppMode(StrEnum):
     COMPLETION = "completion"
     WORKFLOW = "workflow"
     CHAT = "chat"
@@ -68,7 +68,7 @@ class App(db.Model):
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=False, server_default=db.text("''::character varying"))
     mode = db.Column(db.String(255), nullable=False)
-    icon_type = db.Column(db.String(255), nullable=True)
+    icon_type = db.Column(db.String(255), nullable=True)  # image, emoji
     icon = db.Column(db.String(255))
     icon_background = db.Column(db.String(255))
     app_model_config_id = db.Column(StringUUID, nullable=True)
@@ -255,7 +255,7 @@ class AppModelConfig(db.Model):
 
     @property
     def model_dict(self) -> dict:
-        return json.loads(self.model) if self.model else None
+        return json.loads(self.model) if self.model else {}
 
     @property
     def suggested_questions_list(self) -> list:
@@ -600,8 +600,8 @@ class Conversation(db.Model):
                 app_model_config = (
                     db.session.query(AppModelConfig).filter(AppModelConfig.id == self.app_model_config_id).first()
                 )
-
-                model_config = app_model_config.to_dict()
+                if app_model_config:
+                    model_config = app_model_config.to_dict()
 
         model_config["model_id"] = self.model_id
         model_config["provider"] = self.model_provider
@@ -719,6 +719,7 @@ class Message(db.Model):
         db.Index("message_end_user_idx", "app_id", "from_source", "from_end_user_id"),
         db.Index("message_account_idx", "app_id", "from_source", "from_account_id"),
         db.Index("message_workflow_run_id_idx", "conversation_id", "workflow_run_id"),
+        db.Index("message_created_at_idx", "created_at"),
     )
 
     id = db.Column(StringUUID, server_default=db.text("uuid_generate_v4()"))
@@ -949,9 +950,6 @@ class Message(db.Model):
                         "type": message_file.type,
                     },
                     tenant_id=current_app.tenant_id,
-                    user_id=self.from_account_id or self.from_end_user_id or "",
-                    role=CreatedByRole(message_file.created_by_role),
-                    config=FileExtraConfig(),
                 )
             elif message_file.transfer_method == "remote_url":
                 if message_file.url is None:
@@ -964,9 +962,6 @@ class Message(db.Model):
                         "url": message_file.url,
                     },
                     tenant_id=current_app.tenant_id,
-                    user_id=self.from_account_id or self.from_end_user_id or "",
-                    role=CreatedByRole(message_file.created_by_role),
-                    config=FileExtraConfig(),
                 )
             elif message_file.transfer_method == "tool_file":
                 if message_file.upload_file_id is None:
@@ -981,9 +976,6 @@ class Message(db.Model):
                 file = file_factory.build_from_mapping(
                     mapping=mapping,
                     tenant_id=current_app.tenant_id,
-                    user_id=self.from_account_id or self.from_end_user_id or "",
-                    role=CreatedByRole(message_file.created_by_role),
-                    config=FileExtraConfig(),
                 )
             else:
                 raise ValueError(

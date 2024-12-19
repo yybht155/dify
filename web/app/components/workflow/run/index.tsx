@@ -13,7 +13,7 @@ import cn from '@/utils/classnames'
 import { ToastContext } from '@/app/components/base/toast'
 import Loading from '@/app/components/base/loading'
 import { fetchRunDetail, fetchTracingList } from '@/service/log'
-import type { NodeTracing } from '@/types/workflow'
+import type { IterationDurationMap, NodeTracing } from '@/types/workflow'
 import type { WorkflowRunDetailResponse } from '@/models/log'
 import { useStore as useAppStore } from '@/app/components/app/store'
 
@@ -62,7 +62,7 @@ const RunPanel: FC<RunProps> = ({ hideResult, activeTab = 'RESULT', runID, getRe
   const formatNodeList = useCallback((list: NodeTracing[]) => {
     const allItems = [...list].reverse()
     const result: NodeTracing[] = []
-    const groupMap = new Map<string, NodeTracing[]>()
+    const nodeGroupMap = new Map<string, Map<string, NodeTracing[]>>()
 
     const processIterationNode = (item: NodeTracing) => {
       result.push({
@@ -70,11 +70,19 @@ const RunPanel: FC<RunProps> = ({ hideResult, activeTab = 'RESULT', runID, getRe
         details: [],
       })
     }
+
     const updateParallelModeGroup = (runId: string, item: NodeTracing, iterationNode: NodeTracing) => {
+      if (!nodeGroupMap.has(iterationNode.node_id))
+        nodeGroupMap.set(iterationNode.node_id, new Map())
+
+      const groupMap = nodeGroupMap.get(iterationNode.node_id)!
+
       if (!groupMap.has(runId))
         groupMap.set(runId, [item])
+
       else
         groupMap.get(runId)!.push(item)
+
       if (item.status === 'failed') {
         iterationNode.status = 'failed'
         iterationNode.error = item.error
@@ -172,15 +180,17 @@ const RunPanel: FC<RunProps> = ({ hideResult, activeTab = 'RESULT', runID, getRe
   }, [loading])
 
   const [iterationRunResult, setIterationRunResult] = useState<NodeTracing[][]>([])
+  const [iterDurationMap, setIterDurationMap] = useState<IterationDurationMap>({})
   const [isShowIterationDetail, {
     setTrue: doShowIterationDetail,
     setFalse: doHideIterationDetail,
   }] = useBoolean(false)
 
-  const handleShowIterationDetail = useCallback((detail: NodeTracing[][]) => {
+  const handleShowIterationDetail = useCallback((detail: NodeTracing[][], iterDurationMap: IterationDurationMap) => {
     setIterationRunResult(detail)
     doShowIterationDetail()
-  }, [doShowIterationDetail])
+    setIterDurationMap(iterDurationMap)
+  }, [doShowIterationDetail, setIterationRunResult, setIterDurationMap])
 
   if (isShowIterationDetail) {
     return (
@@ -189,6 +199,7 @@ const RunPanel: FC<RunProps> = ({ hideResult, activeTab = 'RESULT', runID, getRe
           list={iterationRunResult}
           onHide={doHideIterationDetail}
           onBack={doHideIterationDetail}
+          iterDurationMap={iterDurationMap}
         />
       </div>
     )
@@ -247,6 +258,7 @@ const RunPanel: FC<RunProps> = ({ hideResult, activeTab = 'RESULT', runID, getRe
             created_at={runDetail.created_at}
             created_by={executor}
             steps={runDetail.total_steps}
+            exceptionCounts={runDetail.exceptions_count}
           />
         )}
         {!loading && currentTab === 'TRACING' && (
