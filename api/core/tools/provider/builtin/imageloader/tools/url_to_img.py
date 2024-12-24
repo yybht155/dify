@@ -42,14 +42,20 @@ class ImageLoaderConvertUrlTool(BuiltinTool):
 
         file_key = f"tools/{tenant_id}/{filename}{image_ext}"
         mime_type, _ = guess_type(file_key)
+        size = 0
         if not storage.exists(file_key):
             response = requests.get(url, stream=True)
             if response.status_code == 200:
                 storage.save(file_key, response.content)
+                size = len(response.content)
             else:
                 raise ToolInvokeError(f"Request failed with status code {response.status_code} and {response.text}")
 
             # sign_url = ToolFileManager.sign_file(file.file_key, image_ext)
+
+        else:
+            blob = storage.load_once(file_key)
+            size = len(blob)
 
         _ = ToolFileManager.create_file_by_key(
             id=filename,
@@ -59,8 +65,12 @@ class ImageLoaderConvertUrlTool(BuiltinTool):
             file_key=file_key,
             mimetype=mime_type,
             name=filename,
-            size=len(response.content)
+            size=size
         )
+
+        sign_url = ToolFileManager.sign_file(tool_file_id=filename, extension=image_ext)
+
+        url = sign_url
 
         meta = { 
             "url": url,
