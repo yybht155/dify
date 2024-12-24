@@ -98,7 +98,7 @@ class CodeExecutor:
         
 
     @classmethod
-    def execute_workflow_code_template(cls, language: CodeLanguage, code: str, inputs: Mapping[str, Any]) -> dict:
+    def execute_workflow_code_template(cls, language: CodeLanguage, code: str, inputs: Mapping[str, Any]):
         """
         Execute code
         :param language: code language
