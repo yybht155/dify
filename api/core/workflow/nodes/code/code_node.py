@@ -79,11 +79,11 @@ class CodeNode(BaseNode[CodeNodeData]):
         if not isinstance(value, str):
             raise OutputValidationError(f"Output variable `{variable}` must be a string")
 
-        if len(value) > dify_config.CODE_MAX_STRING_LENGTH:
-            raise OutputValidationError(
-                f"The length of output variable `{variable}` must be"
-                f" less than {dify_config.CODE_MAX_STRING_LENGTH} characters"
-            )
+        # if len(value) > dify_config.CODE_MAX_STRING_LENGTH:
+        #     raise OutputValidationError(
+        #         f"The length of output variable `{variable}` must be"
+        #         f" less than {dify_config.CODE_MAX_STRING_LENGTH} characters"
+        #     )
 
         return value.replace("\x00", "")
 
