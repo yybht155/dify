@@ -85,11 +85,11 @@ class CodeExecutor:
             exec_result['output'] = observation
             return exec_result
 
-        exec_result = ""
+        exec_result = {}
         try:
             exec_result = exec_code(code)
         except Exception as e:
-            exec_result = traceback.format_exc()
+            exec_result['error'] = traceback.format_exc()
             
         json_string = json.dumps(exec_result, indent=4)
 

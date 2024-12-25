@@ -41,6 +41,8 @@ class TemplateTransformer(ABC):
         """
         try:
             result = json.loads(cls.extract_result_str_from_response(response))
+            if 'error' in result:
+                raise ValueError(result['error'])
         except json.JSONDecodeError:
             raise ValueError("failed to parse response")
         if not isinstance(result, dict):

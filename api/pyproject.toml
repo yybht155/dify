@@ -123,6 +123,7 @@ twilio = "~9.0.4"
 vanna = { version = "0.7.5", extras = ["postgres", "mysql", "clickhouse", "duckdb", "oracle"] }
 wikipedia = "1.4.0"
 yfinance = "~0.2.40"
+opencv-python = "4.10.0.84"
 
 ############################################################
 # [ Storage ] dependency group
