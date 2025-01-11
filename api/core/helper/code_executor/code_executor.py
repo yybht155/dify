@@ -43,7 +43,7 @@ class CodeLanguage(StrEnum):
 
 
 class CodeExecutor:
-    dependencies_cache = {}
+    dependencies_cache: dict[str, str] = {}
     dependencies_cache_lock = Lock()
 
     code_template_transformers: dict[CodeLanguage, type[TemplateTransformer]] = {
