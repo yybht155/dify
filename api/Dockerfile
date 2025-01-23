@@ -30,6 +30,9 @@ RUN apt-get update \
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --sync --no-cache --no-root
 
+RUN playwright install
+RUN playwright install-deps
+
 # production stage
 FROM base AS production
 
