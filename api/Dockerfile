@@ -22,6 +22,7 @@ FROM base AS packages
 
 # if you located in China, you can use aliyun mirror to speed up
 # RUN sed -i 's@deb.debian.org@mirrors.aliyun.com@g' /etc/apt/sources.list.d/debian.sources
+RUN apt-get install -y wget
 RUN wget https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
 RUN dpkg -i packages-microsoft-prod.deb
 
