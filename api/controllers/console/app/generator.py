@@ -29,7 +29,7 @@ class RuleGenerateApi(Resource):
         args = parser.parse_args()
 
         account = current_user
-        PROMPT_GENERATION_MAX_TOKENS = int(os.getenv("PROMPT_GENERATION_MAX_TOKENS", "512"))
+        PROMPT_GENERATION_MAX_TOKENS = 10000 #int(os.getenv("PROMPT_GENERATION_MAX_TOKENS", "512"))
 
         try:
             rules = LLMGenerator.generate_rule_config(
