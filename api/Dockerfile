@@ -59,7 +59,7 @@ RUN \
         # basic environment
         curl nodejs libgmp-dev libmpfr-dev libmpc-dev libgl1-mesa-glx libglib2.0-0 \
         # For Security
-        expat libldap2=2.6.9+dfsg-1 perl libsqlite3-0 zlib1g \
+        expat libldap-2.5-0 perl libsqlite3-0 zlib1g \
         # install a chinese font to support the use of tools like matplotlib
         fonts-noto-cjk \
         # install libmagic to support the use of python-magic guess MIMETYPE
