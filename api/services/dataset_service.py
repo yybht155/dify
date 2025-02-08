@@ -4,6 +4,7 @@ import logging
 import random
 import time
 import uuid
+from collections import Counter
 from typing import Any, Optional
 
 from flask_login import current_user  # type: ignore
@@ -41,6 +42,7 @@ from models.source import DataSourceOauthBinding
 from services.entities.knowledge_entities.knowledge_entities import (
     ChildChunkUpdateArgs,
     KnowledgeConfig,
+    MetaDataConfig,
     RerankingModel,
     RetrievalModel,
     SegmentUpdateArgs,
@@ -893,6 +895,9 @@ class DocumentService:
                                 document.data_source_info = json.dumps(data_source_info)
                                 document.batch = batch
                                 document.indexing_status = "waiting"
+                                if knowledge_config.metadata:
+                                    document.doc_type = knowledge_config.metadata.doc_type
+                                    document.metadata = knowledge_config.metadata.doc_metadata
                                 db.session.add(document)
                                 documents.append(document)
                                 duplicate_document_ids.append(document.id)
@@ -909,6 +914,7 @@ class DocumentService:
                             account,
                             file_name,
                             batch,
+                            knowledge_config.metadata,
                         )
                         db.session.add(document)
                         db.session.flush()
@@ -964,6 +970,7 @@ class DocumentService:
                                     account,
                                     page.page_name,
                                     batch,
+                                    knowledge_config.metadata,
                                 )
                                 db.session.add(document)
                                 db.session.flush()
@@ -1004,6 +1011,7 @@ class DocumentService:
                             account,
                             document_name,
                             batch,
+                            knowledge_config.metadata,
                         )
                         db.session.add(document)
                         db.session.flush()
@@ -1041,6 +1049,7 @@ class DocumentService:
         account: Account,
         name: str,
         batch: str,
+        metadata: Optional[MetaDataConfig] = None,
     ):
         document = Document(
             tenant_id=dataset.tenant_id,
@@ -1056,6 +1065,9 @@ class DocumentService:
             doc_form=document_form,
             doc_language=document_language,
         )
+        if metadata is not None:
+            document.doc_metadata = metadata.doc_metadata
+            document.doc_type = metadata.doc_type
         return document
 
     @staticmethod
@@ -1168,6 +1180,10 @@ class DocumentService:
         # update document name
         if document_data.name:
             document.name = document_data.name
+        # update doc_type and doc_metadata if provided
+        if document_data.metadata is not None:
+            document.doc_metadata = document_data.metadata.doc_type
+            document.doc_type = document_data.metadata.doc_type
         # update document to be waiting
         document.indexing_status = "waiting"
         document.completed_at = None
@@ -1610,8 +1626,11 @@ class SegmentService:
                     segment.answer = args.answer
                     segment.word_count += len(args.answer) if args.answer else 0
                 word_count_change = segment.word_count - word_count_change
+                keyword_changed = False
                 if args.keywords:
-                    segment.keywords = args.keywords
+                    if Counter(segment.keywords) != Counter(args.keywords):
+                        segment.keywords = args.keywords
+                        keyword_changed = True
                 segment.enabled = True
                 segment.disabled_at = None
                 segment.disabled_by = None
@@ -1622,13 +1641,6 @@ class SegmentService:
                     document.word_count = max(0, document.word_count + word_count_change)
                     db.session.add(document)
                 # update segment index task
-                if args.enabled:
-                    VectorService.create_segments_vector(
-                        [args.keywords] if args.keywords else None,
-                        [segment],
-                        dataset,
-                        document.doc_form,
-                    )
                 if document.doc_form == IndexType.PARENT_CHILD_INDEX and args.regenerate_child_chunks:
                     # regenerate child chunks
                     # get embedding model instance
@@ -1661,6 +1673,14 @@ class SegmentService:
                     VectorService.generate_child_chunks(
                         segment, document, dataset, embedding_model_instance, processing_rule, True
                     )
+                elif document.doc_form in (IndexType.PARAGRAPH_INDEX, IndexType.QA_INDEX):
+                    if args.enabled or keyword_changed:
+                        VectorService.create_segments_vector(
+                            [args.keywords] if args.keywords else None,
+                            [segment],
+                            dataset,
+                            document.doc_form,
+                        )
             else:
                 segment_hash = helper.generate_text_hash(content)
                 tokens = 0
