@@ -62,6 +62,8 @@ RUN \
         expat libldap-2.5-0 perl libsqlite3-0 zlib1g \
         # install a chinese font to support the use of tools like matplotlib
         fonts-noto-cjk \
+        # install a package to improve the accuracy of guessing mime type and file extension
+        media-types \
         # install libmagic to support the use of python-magic guess MIMETYPE
         libmagic1 \
     && apt-get autoremove -y \
@@ -94,6 +96,10 @@ RUN apt-get update && apt-get install -y \
     libasound2 \
     libatspi2.0-0 \
     && rm -rf /var/lib/apt/lists/*
+
+ENV TIKTOKEN_CACHE_DIR=/app/api/.tiktoken_cache
+
+RUN python -c "import tiktoken; tiktoken.encoding_for_model('gpt2')"
 
 # Copy source code
 COPY . /app/api/
