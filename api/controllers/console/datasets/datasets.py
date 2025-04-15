@@ -641,12 +641,10 @@ class DatasetRetrievalSettingApi(Resource):
                 VectorType.RELYT
                 | VectorType.TIDB_VECTOR
                 | VectorType.CHROMA
-                | VectorType.TENCENT
                 | VectorType.PGVECTO_RS
                 | VectorType.BAIDU
                 | VectorType.VIKINGDB
                 | VectorType.UPSTASH
-                | VectorType.OCEANBASE
             ):
                 return {"retrieval_method": [RetrievalMethod.SEMANTIC_SEARCH.value]}
             case (
@@ -664,6 +662,9 @@ class DatasetRetrievalSettingApi(Resource):
                 | VectorType.COUCHBASE
                 | VectorType.MILVUS
                 | VectorType.OPENGAUSS
+                | VectorType.OCEANBASE
+                # | VectorType.TABLESTORE  # 已注释，暂不使用
+                | VectorType.TENCENT
             ):
                 return {
                     "retrieval_method": [
@@ -687,12 +688,10 @@ class DatasetRetrievalSettingMockApi(Resource):
                 | VectorType.RELYT
                 | VectorType.TIDB_VECTOR
                 | VectorType.CHROMA
-                | VectorType.TENCENT
                 | VectorType.PGVECTO_RS
                 | VectorType.BAIDU
                 | VectorType.VIKINGDB
                 | VectorType.UPSTASH
-                | VectorType.OCEANBASE
             ):
                 return {"retrieval_method": [RetrievalMethod.SEMANTIC_SEARCH.value]}
             case (
@@ -708,6 +707,9 @@ class DatasetRetrievalSettingMockApi(Resource):
                 | VectorType.PGVECTOR
                 | VectorType.LINDORM
                 | VectorType.OPENGAUSS
+                | VectorType.OCEANBASE
+                # | VectorType.TABLESTORE  # 已注释，暂不使用
+                | VectorType.TENCENT
             ):
                 return {
                     "retrieval_method": [

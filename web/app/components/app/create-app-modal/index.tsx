@@ -148,7 +148,6 @@ function CreateApp({ onClose, onSuccess, onCreateFromTemplate }: CreateAppProps)
               </div>
               <div className='flex flex-row gap-2'>
                 <AppTypeCard
-                  beta
                   active={appMode === 'advanced-chat'}
                   title={t('app.types.advanced')}
                   description={t('app.newApp.advancedShortDescription')}
@@ -159,7 +158,6 @@ function CreateApp({ onClose, onSuccess, onCreateFromTemplate }: CreateAppProps)
                     setAppMode('advanced-chat')
                   }} />
                 <AppTypeCard
-                  beta
                   active={appMode === 'workflow'}
                   title={t('app.types.workflow')}
                   description={t('app.newApp.workflowShortDescription')}
@@ -214,6 +212,7 @@ function CreateApp({ onClose, onSuccess, onCreateFromTemplate }: CreateAppProps)
               />
             </div>
           </div>
+          {isAppsFull && <AppsFull className='mt-4' loc='app-create' />}
           <div className='flex items-center justify-between pb-10 pt-5'>
             <div className='system-xs-regular flex cursor-pointer items-center gap-1 text-text-tertiary' onClick={onCreateFromTemplate}>
               <span>{t('app.newApp.noIdeaTip')}</span>
@@ -251,13 +250,6 @@ function CreateApp({ onClose, onSuccess, onCreateFromTemplate }: CreateAppProps)
         </div>
       </div>
     </div>
-    {
-      isAppsFull && (
-        <div className='px-8 py-2'>
-          <AppsFull loc='app-create' />
-        </div>
-      )
-    }
   </>
 }
 type CreateAppDialogProps = CreateAppProps & {
@@ -280,13 +272,12 @@ export default CreateAppModal
 
 type AppTypeCardProps = {
   icon: React.JSX.Element
-  beta?: boolean
   title: string
   description: string
   active: boolean
   onClick: () => void
 }
-function AppTypeCard({ icon, title, beta = false, description, active, onClick }: AppTypeCardProps) {
+function AppTypeCard({ icon, title, description, active, onClick }: AppTypeCardProps) {
   const { t } = useTranslation()
   return <div
     className={
@@ -298,9 +289,6 @@ function AppTypeCard({ icon, title, beta = false, description, active, onClick }
     }
     onClick={onClick}
   >
-    {beta && <div className='system-2xs-medium-uppercase absolute
-      right-3 top-3 min-w-[18px] rounded-[5px] border
-      border-divider-deep px-[5px] py-[3px] text-text-tertiary'>{t('common.menus.status')}</div>}
     {icon}
     <div className='system-sm-semibold mb-0.5 mt-2 text-text-secondary'>{title}</div>
     <div className='system-xs-regular text-text-tertiary'>{description}</div>
