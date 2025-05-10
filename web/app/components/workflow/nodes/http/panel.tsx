@@ -69,24 +69,25 @@ const Panel: FC<NodePanelProps<HttpNodeType>> = ({
       <div className='space-y-4 px-4 pb-4'>
         <Field
           title={t(`${i18nPrefix}.api`)}
+          required
           operations={
             <div className='flex'>
               <div
                 onClick={showAuthorization}
-                className={cn(!readOnly && 'cursor-pointer hover:bg-gray-50', 'flex h-6 items-center space-x-1 rounded-md px-2 ')}
+                className={cn(!readOnly && 'cursor-pointer hover:bg-state-base-hover', 'flex h-6 items-center space-x-1 rounded-md px-2 ')}
               >
-                {!readOnly && <Settings01 className='h-3 w-3 text-gray-500' />}
-                <div className='text-xs font-medium text-gray-500'>
+                {!readOnly && <Settings01 className='h-3 w-3 text-text-tertiary' />}
+                <div className='text-xs font-medium text-text-tertiary'>
                   {t(`${i18nPrefix}.authorization.authorization`)}
-                  <span className='ml-1 text-gray-700'>{t(`${i18nPrefix}.authorization.${inputs.authorization.type}`)}</span>
+                  <span className='ml-1 text-text-secondary'>{t(`${i18nPrefix}.authorization.${inputs.authorization.type}`)}</span>
                 </div>
               </div>
               <div
                 onClick={showCurlPanel}
-                className={cn(!readOnly && 'cursor-pointer hover:bg-gray-50', 'flex h-6 items-center space-x-1 rounded-md px-2 ')}
+                className={cn(!readOnly && 'cursor-pointer hover:bg-state-base-hover', 'flex h-6 items-center space-x-1 rounded-md px-2 ')}
               >
-                {!readOnly && <FileArrow01 className='h-3 w-3 text-gray-500' />}
-                <div className='text-xs font-medium text-gray-500'>
+                {!readOnly && <FileArrow01 className='h-3 w-3 text-text-tertiary' />}
+                <div className='text-xs font-medium text-text-tertiary'>
                   {t(`${i18nPrefix}.curl.title`)}
                 </div>
               </div>
@@ -126,6 +127,7 @@ const Panel: FC<NodePanelProps<HttpNodeType>> = ({
         </Field>
         <Field
           title={t(`${i18nPrefix}.body`)}
+          required
         >
           <EditBody
             nodeId={id}

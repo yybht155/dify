@@ -15,6 +15,11 @@ const translation = {
     apiKeyPlaceholder: '从 firecrawl.dev 获取 API Key',
     getApiKeyLinkText: '从 firecrawl.dev 获取您的 API Key',
   },
+  watercrawl: {
+    configWatercrawl: '配置 Watercrawl',
+    apiKeyPlaceholder: '从 watercrawl.dev 获取 API Key',
+    getApiKeyLinkText: '从 watercrawl.dev 获取您的 API Key',
+  },
   jinaReader: {
     configJinaReader: '配置 Jina Reader',
     apiKeyPlaceholder: '从 jina.ai 获取 API Key',
@@ -30,7 +35,7 @@ const translation = {
     },
     uploader: {
       title: '上传文本文件',
-      button: '拖拽文件至此，或者',
+      button: '拖拽文件或文件夹至此，或者',
       browse: '选择文件',
       tip: '已支持 {{supportTypes}}，每个文件不超过 {{size}}MB。',
       validation: {
