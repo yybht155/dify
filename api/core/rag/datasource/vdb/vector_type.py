@@ -29,3 +29,4 @@ class VectorType(StrEnum):
     OPENGAUSS = "opengauss"
     # TABLESTORE = "tablestore"  # 已注释，暂不使用
     HUAWEI_CLOUD = "huawei_cloud"
+    MATRIXONE = "matrixone"

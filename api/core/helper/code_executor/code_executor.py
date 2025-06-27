@@ -20,6 +20,7 @@ from core.helper.code_executor.python3.python3_transformer import Python3Templat
 from core.helper.code_executor.template_transformer import TemplateTransformer
 
 logger = logging.getLogger(__name__)
+code_execution_endpoint_url = URL(str(dify_config.CODE_EXECUTION_ENDPOINT))
 
 
 class CodeExecutionError(Exception):
@@ -69,6 +70,8 @@ class CodeExecutor:
         :param code: code
         :return:
         """
+
+        # url = code_execution_endpoint_url / "v1" / "sandbox" / "run"
 
         def exec_code(code):
             exec_result = {}

@@ -225,6 +225,15 @@ GitHub-এ ডিফাইকে স্টার দিয়ে রাখুন �
 
 - [AWS CDK by @KevinZhao](https://github.com/aws-samples/solution-for-deploying-dify-on-aws)
 
+#### Alibaba Cloud ব্যবহার করে ডিপ্লয়
+
+ [Alibaba Cloud Computing Nest](https://computenest.console.aliyun.com/service/instance/create/default?type=user&ServiceName=Dify%E7%A4%BE%E5%8C%BA%E7%89%88)
+
+#### Alibaba Cloud Data Management ব্যবহার করে ডিপ্লয়
+
+ [Alibaba Cloud Data Management](https://www.alibabacloud.com/help/en/dms/dify-in-invitational-preview/)
+
+
 ## Contributing
 
 যারা কোড অবদান রাখতে চান, তাদের জন্য আমাদের [অবদান নির্দেশিকা] দেখুন (https://github.com/langgenius/dify/blob/main/CONTRIBUTING.md)।
@@ -234,7 +243,7 @@ GitHub-এ ডিফাইকে স্টার দিয়ে রাখুন �
 
 ## কমিউনিটি এবং যোগাযোগ
 
-- [Github Discussion](https://github.com/langgenius/dify/discussions) ফিডব্যাক এবং প্রতিক্রিয়া জানানোর মাধ্যম।
+- [GitHub Discussion](https://github.com/langgenius/dify/discussions) ফিডব্যাক এবং প্রতিক্রিয়া জানানোর মাধ্যম।
 - [GitHub Issues](https://github.com/langgenius/dify/issues). Dify.AI ব্যবহার করে আপনি যেসব বাগের সম্মুখীন হন এবং ফিচার প্রস্তাবনা।  আমাদের [অবদান নির্দেশিকা](https://github.com/langgenius/dify/blob/main/CONTRIBUTING.md) দেখুন।
 - [Discord](https://discord.gg/FngNHpbcY7) আপনার এপ্লিকেশন শেয়ার এবং কমিউনিটি আড্ডার মাধ্যম। 
 - [X(Twitter)](https://twitter.com/dify_ai) আপনার এপ্লিকেশন শেয়ার এবং কমিউনিটি আড্ডার মাধ্যম। 

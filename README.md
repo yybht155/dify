@@ -226,6 +226,15 @@ Deploy Dify to AWS with [CDK](https://aws.amazon.com/cdk/)
 
 - [AWS CDK by @KevinZhao](https://github.com/aws-samples/solution-for-deploying-dify-on-aws)
 
+#### Using Alibaba Cloud Computing Nest
+
+Quickly deploy Dify to Alibaba cloud with [Alibaba Cloud Computing Nest](https://computenest.console.aliyun.com/service/instance/create/default?type=user&ServiceName=Dify%E7%A4%BE%E5%8C%BA%E7%89%88) 
+
+#### Using Alibaba Cloud Data Management
+
+One-Click deploy Dify to Alibaba Cloud with [Alibaba Cloud Data Management](https://www.alibabacloud.com/help/en/dms/dify-in-invitational-preview/) 
+
+
 ## Contributing
 
 For those who'd like to contribute code, see our [Contribution Guide](https://github.com/langgenius/dify/blob/main/CONTRIBUTING.md).
@@ -235,7 +244,7 @@ At the same time, please consider supporting Dify by sharing it on social media 
 
 ## Community & contact
 
-- [Github Discussion](https://github.com/langgenius/dify/discussions). Best for: sharing feedback and asking questions.
+- [GitHub Discussion](https://github.com/langgenius/dify/discussions). Best for: sharing feedback and asking questions.
 - [GitHub Issues](https://github.com/langgenius/dify/issues). Best for: bugs you encounter using Dify.AI, and feature proposals. See our [Contribution Guide](https://github.com/langgenius/dify/blob/main/CONTRIBUTING.md).
 - [Discord](https://discord.gg/FngNHpbcY7). Best for: sharing your applications and hanging out with the community.
 - [X(Twitter)](https://twitter.com/dify_ai). Best for: sharing your applications and hanging out with the community.
